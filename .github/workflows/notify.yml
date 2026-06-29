@@ -1,0 +1,52 @@
+# Phone notification for the daily report.
+#
+# Fires when the cloud routine pushes data/daily/YYYY-MM-DD.md: opens a GitHub issue
+# containing the full report, assigned to {{GITHUB_USERNAME}} (assignment is what triggers the
+# GitHub Mobile push notification), and closes the previous day's issue.
+name: notify
+on:
+  push:
+    branches: [main]
+    paths: ['data/daily/**', 'reports/backlog-*.md']
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open report issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # prefer the file this push actually changed (daily report or backlog report)
+          REPORT=$(git diff --name-only HEAD^ HEAD 2>/dev/null | grep -E '^(data/daily/|reports/backlog-).*\.md$' | head -1)
+          [ -n "$REPORT" ] || REPORT=$(ls -t data/daily/*.md 2>/dev/null | head -1)
+          [ -f "$REPORT" ] || { echo "no report found"; exit 0; }
+          DATE=$(basename "$REPORT" .md)
+          HEADLINE=$(grep -m1 -E '^\*\*' "$REPORT" | sed 's/\*\*//g' | cut -c1-100)
+          case "$REPORT" in
+            reports/backlog-*) TITLE="Backlog triage $DATE — ${HEADLINE:-report ready}" ;;
+            *)                 TITLE="Daily scan $DATE — ${HEADLINE:-report ready}" ;;
+          esac
+          gh label create daily-scan --color 1d76db --description "Automated daily scan reports" 2>/dev/null || true
+          for n in $(gh issue list --label daily-scan --state open --json number -q '.[].number'); do
+            gh issue close "$n" --comment "Superseded by the $DATE report." || true
+          done
+          BODY_FILE=$(mktemp)
+          # GitHub issue bodies cap at 65,536 chars — truncate big backlog reports
+          if [ "$(wc -c < "$REPORT")" -gt 60000 ]; then
+            { head -c 60000 "$REPORT"; echo; echo; echo "**… truncated — full report: \`$REPORT\` in the repo.**"; } > "$BODY_FILE"
+          else
+            { cat "$REPORT"; echo; echo "---"; echo "_Source: \`$REPORT\`_"; } > "$BODY_FILE"
+          fi
+          gh issue create --title "$TITLE" --body-file "$BODY_FILE" --label daily-scan --assignee {{GITHUB_USERNAME}}

@@ -1,0 +1,343 @@
+# portals.yml — dk-job-ops scan config (COMMITTED; read by scan.mjs / the scan Action; never auto-edited).
+#
+# Schema (consumed by scan.mjs):
+#   defaults:        { daily_page_cap, seed_page_cap, request_delay_ms }
+#   filters:         { title: {exclude, flag}, company: {exclude} }   ← classify(); negative-first,
+#                    matched on NFD-normalized lowercase. Danish folding: æ→ae, ø→o, å→a
+#                    (København ≡ kobenhavn, rengøring ≡ rengoring, Århus ≡ arhus).
+#                    ⚠️  WRITE EVERY TOKEN IN THAT FOLDED SPACE (no æ/ø/å, single-a for å).
+#   location_filter: { always_allow, block, allow }                   ← precedence: always_allow > block > allow
+#   boards:          general job boards (paginated HTML/RSS/API providers)
+#   companies:       ATS-tracked employers (greenhouse/lever/ashby/smartrecruiters/workday)
+# boards + companies are concatenated into one target list; every entry names its
+# `provider:` explicitly (detect-by-URL is a fallback). `enabled: false` skips.
+
+defaults:
+  daily_page_cap: 8        # max listing pages per board per daily run
+  seed_page_cap: 80        # max pages on `node scan.mjs --seed` (baseline crawl)
+  request_delay_ms: 500    # base inter-page delay per host (jittered 0.5x–1.5x)
+
+# ── Filters (negative-first) ──────────────────────────────────────────────
+# Substring-matched on normalize(title|company). Danish tokens written folded
+# (æ→ae, ø→o, å→a). Note "Århus" folds to "arhus" but "Aarhus" → "aarhus" — both
+# spellings exist, so list both where it matters.
+filters:
+  title:
+    exclude:
+      # — non-professional / manual Danish titles —
+      - rengoring            # rengøring / rengøringsassistent / rengøringsmedarbejder
+      - chauffor             # chauffør (driver) — Danish ads; EN "driver" variants below
+      - lagermedarbejder     # warehouse worker
+      - lagerarbejder
+      - lagerassistent
+      - lagerekspedient
+      - tjener               # waiter
+      - kokkenmedarbejder    # køkkenmedarbejder (kitchen hand)
+      - kokkenassistent
+      - opvasker             # dishwasher
+      - bartender
+      - barista
+      - produktionsmedarbejder
+      - produktionsarbejder
+      - fabriksarbejder
+      - montor               # montør (fitter/assembler) — does NOT catch "kontoor"/professional titles
+      - flyttemand           # mover
+      - sikkerhedsvagt       # security guard (bare "vagt" risks "vagthavende læge")
+      - vagtassistent
+      - pedel                # janitor
+      - postbud              # postal carrier
+      - avisbud              # paper delivery
+      - cykelbud             # bike courier (bare "bud" would catch "budget")
+      - reklamebud
+      - social- og sundhedshjaelper   # SOSU care worker (folded: hjælper→hjaelper) — remove if in scope
+      # — non-professional / manual English titles (DK boards carry many EN ads) —
+      - cleaner
+      - delivery driver
+      - truck driver
+      - van driver
+      - bus driver
+      - taxi driver
+      - personal driver
+      - professional driver
+      - courier
+      - waiter
+      - waitress
+      - warehouse worker
+      - warehouse operative
+      - warehouse operator
+      - warehouse associate
+      - warehouse assistant
+      - warehouse supervisor
+      - forklift
+      - security guard
+      - cashier
+      - housekeep
+      # — gambling / live-casino TITLES (X1 gate) —
+      #   NB: do NOT use bare "spil" — it catches "spiludvikler" (game DEVELOPER, in-scope).
+      - casino
+      - kasino
+      - betting
+      - game presenter       # live-casino dealer
+      - live dealer
+      - croupier
+      - kroupier
+      # — outbound telesales / cold-call (X2 gate) —
+      - telesalg             # teleselling
+      - telemarketing
+      - telefoninterviewer
+      - call center agent
+      - kundeopkald
+      # — director-level seniority (X3 gate) —
+      - direktor             # direktør
+      - administrerende      # administrerende direktør (CEO)
+      - director
+      - head of
+      - chief executive
+      - chief financial
+      - chief technology
+      - chief operating
+    flag:                  # keep, but tag — surfaces in the report's "Flagged senior" section
+      - senior
+      - lead
+      - principal
+      - staff engineer
+      - expert
+      - ledende             # Danish "leading/senior"
+  company:
+    exclude:               # gambling / betting operators licensed in DK (X1 gate)
+      - danske spil
+      - danske licens
+      - unibet
+      - kindred
+      - mr green
+      - leovegas
+      - betsson
+      - nordicbet
+      - comeon
+      - tipico
+      - bet365
+      - "888"
+      - casino
+      - spillehal
+
+# ── Location filter (always_allow > block > allow; empty location passes) ──
+# Denmark + Denmark-eligible remote pass. always_allow = Danish places (folded).
+# block = the rest of the world (incl. Serbia/Belgrade) — but always_allow beats
+# block, so a multi-location string that also names a Danish city still passes.
+# allow lets cross-border REMOTE through ("Remote - EMEA", "Nordic remote") while
+# block still rejects on-site foreign roles ("Stockholm, Sweden").
+location_filter:
+  always_allow:
+    - denmark
+    - danmark
+    - copenhagen
+    - kobenhavn          # København
+    - frederiksberg
+    - hovedstaden        # Capital Region
+    - greater copenhagen
+    - aarhus
+    - arhus              # Århus folds to single-a
+    - odense
+    - aalborg
+    - alborg
+    - esbjerg
+    - randers
+    - kolding
+    - vejle
+    - horsens
+    - roskilde
+    - lyngby
+    - hilleroed          # Hillerød
+    - sjaelland          # Zealand
+    - zealand
+    - fyn                # Funen
+    - jylland            # Jutland
+    - jutland
+  block:
+    - serbia
+    - srbija
+    - belgrade
+    - beograd
+    - united states
+    - usa
+    - ", us"
+    - "(us)"
+    - canada
+    - united kingdom
+    - ", uk"
+    - "(uk)"
+    - ireland
+    - germany
+    - france
+    - netherlands
+    - belgium
+    - spain
+    - portugal
+    - italy
+    - poland
+    - czech
+    - slovakia
+    - romania
+    - bulgaria
+    - hungary
+    - austria
+    - switzerland
+    - greece
+    - ukraine
+    - turkey
+    - israel
+    - india
+    - pakistan
+    - philippines
+    - china
+    - japan
+    - singapore
+    - australia
+    - new zealand
+    - brazil
+    - mexico
+    - argentina
+    - colombia
+    - apac
+    - latam
+    - north america
+    - americas
+    # US-state "Remote - <State>" rows (no country name → would pass via 'remote') —
+    - california
+    - colorado
+    - illinois
+    - new york
+    - oregon
+    - texas
+    - washington
+    - florida
+    - pennsylvania
+    - massachusetts
+    - new jersey
+    - georgia
+    - arizona
+    - virginia
+    - north carolina
+    - nevada
+    - utah
+    - ohio
+    - michigan
+    - minnesota
+    # On-site Nordic / Baltic / Balkan neighbours (cross-border REMOTE still passes
+    # via the allow list below). Sweden/Norway/Finland are blocked on-site — if the
+    # friend commutes the Øresund to Malmö, remove 'sweden'/'malmo'. —
+    - sweden
+    - malmo
+    - norway
+    - finland
+    - iceland
+    - estonia
+    - latvia
+    - lithuania
+    - croatia
+    - slovenia
+    - bosnia
+    - montenegro
+    - macedonia
+    - albania
+    - moldova
+    - cyprus
+    - malta
+    - luxembourg
+    - morocco
+    - tunisia
+    - egypt
+    - nigeria
+    - kenya
+    - south africa
+    - saudi
+    - qatar
+    - dubai
+    - united arab emirates
+    - vietnam
+    - thailand
+    - indonesia
+    - malaysia
+    - korea
+    - taiwan
+    - hong kong
+  allow:
+    - remote
+    - emea
+    - europe
+    - nordic
+    - scandinavia
+    - oresund            # Øresund cross-border region (Copenhagen–Malmö)
+
+# ── Boards (general job portals) ───────────────────────────────────────────
+# ⚠️  The Danish board providers (jobnet/jobindex/thehub) are best-effort and
+# carry VERIFY-AT-BUILD assumptions in their headers — endpoints/selectors must
+# be confirmed against the live sites and may need maintenance as they change.
+# LinkedIn + Jooble + the ATS companies are the reliable floor of coverage.
+boards:
+  - name: Jobnet
+    provider: jobnet
+    enabled: true
+    api: https://job.jobnet.dk/CV/FindWork/SearchPublishedJobs   # VERIFY: this path is WAF+login-walled from DC IPs (2026-06); rediscover the anonymous search request from a DK IP's Network tab
+    location: København                                          # optional geo hint; real gate is location_filter
+    keywords: ['', engineer, developer, analyst]                 # '' = broadest sweep, like Jooble
+    max_requests: 4
+
+  - name: Jobindex
+    provider: jobindex
+    enabled: true
+    url: https://www.jobindex.dk/jobsoegning                     # nationwide; narrow to /jobsoegning/storkoebenhavn if desired
+    max_requests: 4                                              # Cloudflare: page-1 block = soft_fail (expected from DC IPs)
+
+  - name: TheHub
+    provider: thehub
+    enabled: true
+    url: https://thehub.io/jobs?location=Copenhagen             # HTML page used only for Algolia-key auto-extraction fallback
+    location: Copenhagen
+    max_requests: 3
+    # algolia: { app_id: XXXXXXXX, api_key: <search-only-key>, index: jobs }  # VERIFY — paste from thehub.io Network tab (preferred)
+
+  - name: LinkedIn
+    provider: linkedin-guest
+    enabled: true
+    url: https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search
+    location: "Denmark"
+    time_window: r86400      # f_TPR last 24h
+    max_requests: 4          # ≤4 pages; 429/empty page = soft_fail (expected from DC IPs)
+
+  - name: Jooble
+    provider: jooble
+    enabled: true
+    url: https://jooble.org/api/    # POST {url}{JOOBLE_API_KEY}; missing key → skipped (not failed)
+    location: Danmark
+
+# ── ATS-tracked companies ──────────────────────────────────────────────────
+# Two groups:
+#  (1) International employers that post Denmark / remote-EMEA roles — these pass
+#      the location_filter via the europe/emea/remote `allow` keywords and work
+#      out of the box. Slugs were valid in the source repo (June 2026) — RE-VERIFY.
+#  (2) Danish-HQ employers — enabled:false until you confirm the ATS slug/tenant
+#      (open the company's careers page, find the greenhouse/lever/ashby/
+#      smartrecruiters/myworkdayjobs URL, paste it, set enabled:true). Your
+#      `/dk-job-ops onboard` session can help populate these.
+companies:
+  # (1) International, remote-EMEA / Denmark-friendly — VERIFY slugs —
+  - { name: Canonical, provider: greenhouse, enabled: true, careers_url: https://job-boards.greenhouse.io/canonical }   # "Home based - EMEA" remote
+  - { name: Camunda,   provider: ashby,      enabled: true, careers_url: https://jobs.ashbyhq.com/camunda }             # remote EMEA
+  - { name: UiPath,    provider: ashby,      enabled: true, careers_url: https://jobs.ashbyhq.com/uipath }
+  - { name: Scribe,    provider: ashby,      enabled: true, careers_url: https://jobs.ashbyhq.com/scribe }              # remote
+  - { name: JetBrains, provider: greenhouse, enabled: true, careers_url: https://job-boards.eu.greenhouse.io/jetbrains,
+      api: https://boards.eu.greenhouse.io/v1/boards/jetbrains/jobs }
+
+  # (2) Danish-HQ employers — VERIFY the slug/tenant, then flip enabled:true —
+  - { name: Pleo,    provider: greenhouse,     enabled: false, careers_url: https://job-boards.greenhouse.io/pleo }          # Copenhagen fintech — VERIFY
+  - { name: Zendesk, provider: greenhouse,     enabled: false, careers_url: https://job-boards.greenhouse.io/zendesk }       # Copenhagen R&D — VERIFY
+  - { name: Templafy, provider: greenhouse,    enabled: false, careers_url: https://job-boards.greenhouse.io/templafy }      # VERIFY (may be Lever)
+  - { name: Unity,    provider: greenhouse,    enabled: false, careers_url: https://job-boards.greenhouse.io/unitytechnologies }  # Copenhagen office — VERIFY
+  # Workday tenants (large Danish corps often use Workday) — find the
+  # {tenant}.wdN.myworkdayjobs.com/{Site} URL on the careers page, then enable:
+  # - { name: Maersk,       provider: workday, enabled: false, careers_url: https://maersk.wdN.myworkdayjobs.com/SITE,  workday: { searchText: "", limit: 100 } }
+  # - { name: Novo Nordisk, provider: workday, enabled: false, careers_url: https://novonordisk.wdN.myworkdayjobs.com/SITE, workday: { limit: 100 } }
+  # - { name: Vestas,       provider: workday, enabled: false, careers_url: https://vestas.wdN.myworkdayjobs.com/SITE,  workday: { limit: 100 } }
+  # SmartRecruiters example (find the slug at careers.smartrecruiters.com/{Slug}):
+  # - { name: Example, provider: smartrecruiters, enabled: false, careers_url: https://careers.smartrecruiters.com/ExampleSlug }

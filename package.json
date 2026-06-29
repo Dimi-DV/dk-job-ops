@@ -1,0 +1,19 @@
+{
+  "name": "dk-job-ops",
+  "version": "1.0.0",
+  "description": "Denmark job-search pipeline: daily scan, triage, tailor, track",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scan": "node scan.mjs",
+    "scan:seed": "node scan.mjs --seed",
+    "scan:dry": "node scan.mjs --dry-run"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "js-yaml": "^4.1.0",
+    "marked": "^18.0.5",
+    "playwright": "^1.49.0"
+  }
+}

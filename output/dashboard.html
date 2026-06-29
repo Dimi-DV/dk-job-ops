@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dk-job-ops — pipeline</title><style>
+  :root { --teal:#0f9b8e; --bg:#101418; --card:#1a2027; --txt:#e8edf2; --dim:#8b97a3; }
+  * { box-sizing:border-box } body { background:var(--bg); color:var(--txt); margin:0;
+    font:14px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif; padding:18px; }
+  h1 { font-size:19px; margin:0 0 4px } h1 b{color:var(--teal)} .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+  .stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px }
+  .stat { background:var(--card); border-radius:10px; padding:8px 14px; text-align:center }
+  .stat b { display:block; font-size:20px; color:var(--teal) } .stat span{font-size:11px;color:var(--dim)}
+  input#q { width:100%; padding:9px 12px; border-radius:10px; border:1px solid #2a323c;
+    background:var(--card); color:var(--txt); margin-bottom:14px; font-size:14px }
+  details { background:var(--card); border-radius:12px; margin-bottom:12px; padding:4px 10px }
+  summary { cursor:pointer; font-weight:600; padding:8px 4px; font-size:15px }
+  .count { color:var(--dim); font-weight:400 }
+  table { width:100%; border-collapse:collapse; font-size:13px }
+  th { text-align:left; color:var(--dim); font-weight:500; font-size:11px; padding:4px 6px }
+  td { padding:7px 6px; border-top:1px solid #242c35; vertical-align:top }
+  .num { color:var(--dim) } .role { min-width:180px }
+  .score { font-weight:700 } .s4,.s5 { color:#37d4a0 } .s3 { color:#e9c46a } .s2,.s1,.s0 { color:var(--dim) }
+  .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:10.5px; background:#242c35; color:var(--dim) }
+  .chip.fresh { background:#103b32; color:#37d4a0; font-weight:600 }
+  .chip.recent { background:#3a3322; color:#e9c46a }
+  .chip.seed { background:transparent; border:1px dashed #2a323c }
+  .chip.prio { background:#3b1f1a; color:#ef9a8a }
+  .closes small { display:block; color:var(--dim); font-size:10.5px }
+  .closes.soon small { color:#e9c46a } .closes.urgent small { color:#ef6a5a; font-weight:700 }
+  .btn { display:inline-block; padding:3px 10px; border-radius:8px; font-size:11.5px; text-decoration:none; margin:1px 2px 1px 0 }
+  .btn.go { background:var(--teal); color:#04211d; font-weight:600 } .btn.cv { background:#2b3a44; color:var(--txt) }
+  .btn.rep { background:transparent; border:1px solid #2a323c; color:var(--dim) }
+  .nocv { color:#39424c } .notes { color:var(--dim); font-size:11.5px; max-width:340px }
+  .actions { white-space:nowrap }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap }
+  .tabbtn { background:var(--card); color:var(--dim); border:1px solid #2a323c; border-radius:10px;
+    padding:8px 16px; font:600 13.5px inherit; cursor:pointer }
+  .tabbtn.on { background:var(--teal); color:#04211d; border-color:var(--teal) }
+  .tabbtn .count { font-weight:400; opacity:.75; margin-left:4px }
+  .tab { display:none } .tab.on { display:block }
+  button.act { border:none; cursor:pointer; font:inherit; font-size:11.5px }
+  .act.ok { background:#1d3a2b; color:#37d4a0 } .act.no { background:#3a2424; color:#ef9a8a }
+  .act[disabled] { opacity:.4; cursor:wait }
+  #gear { position:absolute; top:18px; right:18px; background:none; border:none; font-size:17px; cursor:pointer; opacity:.6 }
+  #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#26313c; color:var(--txt);
+    padding:10px 18px; border-radius:99px; font-size:13px; display:none; z-index:9; box-shadow:0 4px 18px #0008 }
+  @media (max-width:700px){ .notes{display:none} th:last-child{display:none} }
+</style></head><body>
+<button id="gear" title="GitHub token for the ✓/✗ buttons">⚙</button>
+<h1>dk-job-<b>ops</b> — Denmark pipeline</h1>
+<div class="sub">generated 2026-06-29 15:40 UTC · 0 tracked · regenerate: <code>node dashboard.mjs</code></div>
+<div class="stats">
+  <div class="stat"><b>0</b><span>applied</span></div>
+  <div class="stat"><b>0</b><span>priority queue</span></div>
+  <div class="stat"><b>0</b><span>apply band</span></div>
+  <div class="stat"><b>0</b><span>due ≤7d</span></div>
+  <div class="stat"><b>0</b><span>uneval'd finds</span></div>
+  <div class="stat"><b>0</b><span>parked</span></div>
+</div>
+<input id="q" placeholder="filter… (company, role, family, band, scan 06-12, fresh)" oninput="
+  const v=this.value.toLowerCase();
+  document.querySelectorAll('tbody tr').forEach(t=>t.style.display=t.dataset.q.includes(v)?'':'none')">
+<nav class="tabs">
+  <button class="tabbtn" data-tab="queue">⭐ Queue<span class="count">0</span></button>
+  <button class="tabbtn" data-tab="finds">🛰 Finds<span class="count">0</span></button>
+  <button class="tabbtn" data-tab="applied">✉️ Applied<span class="count">0</span></button>
+  <button class="tabbtn" data-tab="parked">🗄 Parked<span class="count">0</span></button>
+</nav>
+<div class="tab" id="tab-queue">
+
+
+
+
+</div>
+<div class="tab" id="tab-finds">
+<p style="color:var(--dim);padding:8px 4px">No unevaluated finds — every PRIORITY/APPLY row from the recent scans has a tracker row. New scan results appear here before evaluation.</p>
+</div>
+<div class="tab" id="tab-applied">
+
+</div>
+<div class="tab" id="tab-parked">
+
+</div>
+<div id="toast"></div>
+<script>
+const REPO = '{{GITHUB_OWNER}}/dk-job-ops', WF = 'tracker-update.yml'
+const TABS = ['queue', 'finds', 'applied', 'parked']
+function showTab(id) {
+  if (!TABS.includes(id)) id = 'queue'
+  document.querySelectorAll('.tab').forEach(d => d.classList.toggle('on', d.id === 'tab-' + id))
+  document.querySelectorAll('.tabbtn').forEach(b => b.classList.toggle('on', b.dataset.tab === id))
+  history.replaceState(null, '', '#' + id)
+}
+document.querySelectorAll('.tabbtn').forEach(b => b.onclick = () => showTab(b.dataset.tab))
+showTab((location.hash || '#queue').slice(1))
+
+let toastT
+function toast(msg) {
+  const t = document.getElementById('toast')
+  t.textContent = msg; t.style.display = 'block'
+  clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', 6000)
+}
+const pat = () => localStorage.getItem('dkjobops_pat') || ''
+document.getElementById('gear').onclick = () => {
+  const t = prompt('GitHub fine-grained PAT for ' + REPO + ' (permission: Actions → Read and write). Stored only in this browser. Leave empty to clear.', pat())
+  if (t !== null) { t ? localStorage.setItem('dkjobops_pat', t) : localStorage.removeItem('dkjobops_pat'); toast(t ? 'token saved' : 'token cleared') }
+}
+async function dispatch(num, act, btn) {
+  if (!pat()) { document.getElementById('gear').click(); if (!pat()) return }
+  btn.disabled = true
+  try {
+    const r = await fetch('https://api.github.com/repos/' + REPO + '/actions/workflows/' + WF + '/dispatches', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + pat(), Accept: 'application/vnd.github+json' },
+      body: JSON.stringify({ ref: 'main', inputs: { num, action: act } }),
+    })
+    if (r.status === 204) {
+      const tr = btn.closest('tr')
+      tr.style.opacity = .45
+      tr.querySelectorAll('.act').forEach(b => b.remove())
+      toast('#' + num + ' → ' + act + ' queued — tracker updates and site redeploys in ~2 min')
+    } else {
+      btn.disabled = false
+      toast('failed: HTTP ' + r.status + (r.status === 401 || r.status === 403 ? ' — check the token (⚙)' : r.status === 404 ? ' — workflow not on main yet?' : ''))
+    }
+  } catch (e) { btn.disabled = false; toast('network error: ' + e.message) }
+}
+document.body.addEventListener('click', e => {
+  const b = e.target.closest('button.act')
+  if (b) dispatch(b.dataset.num, b.dataset.act, b)
+})
+</script>
+</body></html>

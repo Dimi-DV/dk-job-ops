@@ -1,0 +1,39 @@
+# Rebuild the static dashboard whenever pipeline data changes.
+# Commits output/dashboard.html; trigger paths exclude output/, so no self-loop.
+name: dashboard
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'reports/**'
+      - 'dashboard.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dashboard
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --omit=dev
+      - run: node dashboard.mjs
+      - name: Commit dashboard
+        run: |
+          git config user.name "dk-job-ops-dashboard"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/dashboard.html
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "dashboard: rebuild"
+          git pull --rebase origin main
+          git push

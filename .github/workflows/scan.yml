@@ -1,0 +1,40 @@
+# PRIMARY scanner — scans are run manually. Fire from GitHub web/mobile:
+# Actions → scan → Run workflow. Zero Claude tokens, unrestricted egress. Commits
+# data/new/<today>.tsv + providers.json; triage in any Claude Code session
+# afterwards (/dk-job-ops review picks it up). The cron stays commented out by design.
+name: scan
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '10 2 * * *'   # 02:10 UTC = 04:10 Copenhagen (CEST)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --omit=dev
+      - name: Run scanner
+        env:
+          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
+        run: node scan.mjs --budget=420
+      - name: Commit results
+        run: |
+          git config user.name "dk-job-ops-scan"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet && echo "nothing new" && exit 0
+          git commit -m "scan $(date -u +%F): zero-token sweep (Actions fallback)"
+          git pull --rebase origin main
+          git push
